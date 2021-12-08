@@ -1,0 +1,6 @@
+install.packages("devtools")
+install.packages("tidyverse")
+library(tidyverse)
+devtools::install_github("backports")
+# dataset <- read_csv("dataset/D_ETL_IMO_EXTRACAO_SINE_ABERTO_TRABALHADORES_PE.csv")
+# dataset <- read_delim("dataset/D_ETL_IMO_EXTRACAO_SINE_ABERTO_TRABALHADORES_PE.csv")
