@@ -6,6 +6,7 @@ install.packages("RVAideMemoire")
 library(RVAideMemoire)
 install.packages("rstatix")
 library(stats)
+library(rstatix)
 install.packages("DescTools")
 library(DescTools)
 ################################
@@ -36,6 +37,8 @@ plot(dados_sine$REQUERIDO_DEFICIENCIA)
 
 vagas_sine <- read.csv("vagas_categorio.csv", sep=";",encoding = "UTF-8")
 
+vagas_sine_num <- read.csv("vagas.csv", sep=";",encoding = "UTF-8")
+
 ##ver em forma de tabela:
 
 view(vagas_sine)
@@ -47,7 +50,17 @@ resumo_salarios <- summary(vagas_sine$VALOR_SALARIO)
 
 # FREQUENCIA DE DADOS DO TIPO DE CONTRATAÇÃO:
 
-table(vagas_sine$TIPO_CONTRATACAO)
+tipo_contratacao <- table(vagas_sine$TIPO_CONTRATACAO)
+
+barplot(tipo_contratacao,
+        beside = TRUE,
+        xlab = "Tipo de contratação",
+        ylab = "Frequência absoluta",
+        col = c(1,2,3,4) )
+legend("topleft",
+       legend = levels(vagas_sine$TIPO_CONTRATACAO),
+       fill = c(1,2,3,4))
+
 
 # FREQUENCIA DE DADOS DA QUANTIDADE DE VAGAS:
 
@@ -110,6 +123,14 @@ bins_st <- function(vec){
 
 vagas_sine %>% ggplot(aes(x = VALOR_SALARIO)) + geom_histogram(bins = bins_st(vagas_sine$VALOR_SALARIO),colour=4, fill="white") + theme_classic()
 
+vagas_sine$VALOR_SALARIO_LOG <- log(vagas_sine$VALOR_SALARIO)
+
+# verificação da normaliade com os dados transformados:
+
+lillie.test(vagas_sine$VALOR_SALARIO_LOG)
+
+lillie.test(vagas_sine$VALOR_SALARIO)
+
 # TESTE DE SHAPIRO-WILK: TESTE PARA SABER SE A COLUNA SALARIO SEGUE DISTRIBUIÇÃO NORMAL
 
 shapiro.test(vagas_sine$VALOR_SALARIO) # o tamanho da amostra deve estar entre 3 e 5000
@@ -118,10 +139,11 @@ lillie.test(vagas_sine$VALOR_SALARIO)
 
 #RESULTADO DO TESTE: COMO O PVALOR É MUITO BAIXO ENTAO REJEITA A HIPOTESE NULA DE QUE OS DADOS PROVEM DE U
 # DISTRIBUIÇÃO NORMAL.
-Lilliefors (Kolmogorov-Smirnov) normality test
 
-data:  vagas_sine$VALOR_SALARIO
-D = 0.20037, p-value < 2.2e-16
+#Lilliefors (Kolmogorov-Smirnov) normality test
+
+#data:  vagas_sine$VALOR_SALARIO
+#D = 0.20037, p-value < 2.2e-16
 
 
 # APLICANDO O TESTE DA ANOVA
@@ -131,6 +153,7 @@ D = 0.20037, p-value < 2.2e-16
 
 anova1 <- aov(data = vagas_sine, VALOR_SALARIO ~ ESCOLARIDADE)
 summary(anova1)
+
 
 TukeyHSD(anova1)
 plot(TukeyHSD(anova1))
@@ -168,11 +191,24 @@ vagas_sine %>% group_by(ESCOLARIDADE,QTD_EXPERIENCIA) %>%
 modelo <- aov(VALOR_SALARIO ~ ESCOLARIDADE*QTD_EXPERIENCIA, vagas_sine)
 summary(modelo)
 
+?aov
 Anova(modelo, type = "III")
 
 # GRAFICO DE INTERAÇÃO:
-
-ggplot(vagas_sine, aes(x = QTD_EXPERIENCIA, y = VALOR_SALARIO, group= ESCOLARIDADE, color=ESCOLARIDADE)) + 
+cores <- c(
+  "Nenhum" = "red1",
+  "Analfabeto" = "red3",
+  "Fundamental Incompleto" = "orangered1",
+  "Fundamental Completo" = "orangered3",
+  "Médio Incompleto" = "orange1",
+  "Médio Completo" = "orange3",
+  "Superior Incompleto" = "yellow1",
+  "Superior Completo" = "yellow3",
+  "Especialização" = "green1",
+  "Mestrado" = "blue1",
+  "Doutorado" = "blue3"
+)
+ggplot(vagas_sine, aes(x = QTD_EXPERIENCIA, y = VALOR_SALARIO, group= ESCOLARIDADE, color= ESCOLARIDADE )) + 
   geom_line(stat = "summary", fun.data="mean_se", size=0.6)+
   geom_point(stat = "summary", fun.y = "mean") +
   geom_errorbar(stat = "summary", fun.data = "mean_se", width=0.2)
@@ -180,9 +216,10 @@ ggplot(vagas_sine, aes(x = QTD_EXPERIENCIA, y = VALOR_SALARIO, group= ESCOLARIDA
 
 ####modelo 2:
 
-modelo <- aov(VALOR_SALARIO ~ QTD_VAGAS*TIPO_CONTRATACAO, vagas_sine)
-summary(modelo)
 
+
+modelo_v1 <- aov(VALOR_SALARIO ~ ESCOLARIDADE*TIPO_CONTRATACAO, vagas_sine)
+summary(modelo_v1)
 Anova(modelo, type = "III")
 
 # GRAFICO DE INTERAÇÃO:
@@ -201,10 +238,21 @@ summary(modelo)
 
 
 modelo2 <- aov(QTD_EXPERIENCIA ~ TIPO_CONTRATACAO, vagas_sine)
+summary(modelo2)
 
 modelo3 <- aov(VALOR_SALARIO ~ TIPO_CONTRATACAO, vagas_sine)
+summary(modelo3)
+#analise de pst-hoc:
+PostHocTest(modelo3, method = "hsd", conf.level = 0.95)
 
 modelo4 <- aov(VALOR_SALARIO ~ ESCOLARIDADE, vagas_sine)
+
+# verificação de normalidade dos dados:
+lillie.test(modelo4$residu)
+# verificação da homogeneidade das variâncias:
+LeveneTest(VALOR_SALARIO ~ ESCOLARIDADE, vagas_sine)
+
+
 summary(modelo4)
 # ANALISE PST-HOC:
 PostHocTest(modelo4, method = "hsd", conf.level = 0.95)
@@ -215,3 +263,76 @@ ggplot(vagas_sine, aes(x = QTD_VAGAS, y = VALOR_SALARIO, group= TIPO_CONTRATACAO
   geom_line(stat = "summary", fun.data="mean_se", size=0.6)+
   geom_point(stat = "summary", fun.y = "mean") +
   geom_errorbar(stat = "summary", fun.data = "mean_se", width=0.2)
+
+
+
+
+
+summary(modelo_es)
+# VALOR_SALARIO entre sp - ce, sp -go, sp -mg
+
+PostHocTest(modelo_es, method = "hsd", conf.level = 0.95)
+
+modelo <- aov(VALOR_SALARIO ~ ESCOLARIDADE + QTD_EXPERIENCIA + ESCOLARIDADE*QTD_EXPERIENCIA, vagas_sine)
+summary(modelo)
+
+
+# MODELOS DO PROJETO:
+
+modelo1 <- aov(VALOR_SALARIO ~ TIPO_CONTRATACAO, vagas_sine)
+summary(modelo1)
+
+PostHocTest(modelo1, method = "hsd", conf.level = 0.95)
+
+# verificação das suposições:
+
+lillie.test(modelo1$residuals) # normalidade dos residuos
+
+# verificação da homogeneidade das variâncias:
+LeveneTest(VALOR_SALARIO ~ TIPO_CONTRATACAO, vagas_sine)
+leveneTest(VALOR_SALARIO ~ TIPO_CONTRATACAO, vagas_sine, center = median)
+#modelo 2:
+
+modelo2 <- aov(VALOR_SALARIO  ~ ESTADO*ESCOLARIDADE, vagas_sine)
+summary(modelo2)
+
+Anova(modelo2, type = "III")
+
+lillie.test(modelo2$residuals)
+
+LeveneTest(VALOR_SALARIO  ~ ESTADO*ESCOLARIDADE, vagas_sine)
+
+
+PostHocTest(modelo2, method = "hsd", conf.level = 0.95)
+
+#MODELO 3:
+
+modelo3 <- aov(QTD_VAGAS  ~ ESTADO*TIPO_CONTRATACAO, vagas_sine)
+summary(modelo3)
+
+lillie.test(modelo3$residuals)
+
+LeveneTest(QTD_VAGAS  ~ ESTADO*TIPO_CONTRATACAO, vagas_sine)
+
+
+
+PostHocTest(modelo3, method = "hsd", conf.level = 0.95)
+
+#MODELO 4:
+
+modelo4 <- aov(QTD_VAGAS  ~ ESCOLARIDADE, vagas_sine)
+summary(modelo4)
+
+lillie.test(modelo4$residuals)
+
+LeveneTest(QTD_VAGAS  ~ ESCOLARIDADE, vagas_sine)
+
+
+
+PostHocTest(modelo4, method = "hsd", conf.level = 0.95)
+#MODELO 5:
+
+modelo5 <- aov(ESTADO ~ TIPO_CONTRATACAO * ESCOLARIDADE, vagas_sine_num)
+summary(modelo5)
+
+PostHocTest(modelo5, method = "hsd", conf.level = 0.95)
